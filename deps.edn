@@ -7,5 +7,9 @@
            :run {
                  :main-opts ["-m" "pets-api.core"]
                  }
-           }
+          :build {
+                  :deps {io.github.clojure/tools.build {:mvn/version "0.10.5"}}
+                   :ns-default build
+                   }
+          }
  }
