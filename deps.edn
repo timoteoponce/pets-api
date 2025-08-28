@@ -1,0 +1,11 @@
+{:paths ["src"]
+ :deps {org.clojure/clojure {:mvn/version "1.11.1"}
+        ring/ring-core {:mvn/version "1.12.2"}
+        ring/ring-jetty-adapter {:mvn/version "1.12.2"}
+        compojure/compojure {:mvn/version "1.7.1"}}
+ :aliases {
+           :run {
+                 :main-opts ["-m" "pets-api.core"]
+                 }
+           }
+ }
