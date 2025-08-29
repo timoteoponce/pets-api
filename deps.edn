@@ -5,7 +5,9 @@
         ring/ring-json {:mvn/version "0.5.1"}
         compojure/compojure {:mvn/version "1.7.1"}
         org.clojure/tools.logging {:mvn/version "1.3.0"}
-        ch.qos.logback/logback-classic {:mvn/version "1.5.12"}}
+        ch.qos.logback/logback-classic {:mvn/version "1.5.12"}
+        org.xerial/sqlite-jdbc {:mvn/version "3.50.3.0"}
+        org.clojure/java.jdbc {:mvn/version "0.7.12"}}
  :aliases {
            :run {
                  :main-opts ["-m" "pets-api.core"]

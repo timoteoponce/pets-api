@@ -1,10 +1,86 @@
 (ns pets-api.core
   (:gen-class)
-  (:require [clojure.tools.logging :as log]
+  (:require [clojure.java.jdbc :as jdbc]
+            [clojure.tools.logging :as log]
             [compojure.core :refer :all]
             [compojure.route :as route]
             [ring.adapter.jetty :refer [run-jetty]]
-            [ring.middleware.json :refer [wrap-json-response]]))
+            [ring.middleware.json :refer [wrap-json-response wrap-json-body]]
+            [ring.util.response :refer [response status]])
+  (:import [org.sqlite SQLiteException]))
+
+(def db-spec
+  {:dbtype "sqlite"
+   :dbname "pets.db"})
+
+(defn init-db []
+  (try
+    (jdbc/db-do-commands db-spec
+                         (jdbc/create-table-ddl :pets
+                                                [[:id :integer :primary :key :autoincrement]
+                                                 [:name :text :not :null :unique]]))
+    (log/info "Created Pets table")
+    (catch Exception e
+      (if (re-find #"table.*already exists" (.getMessage e))
+        (log/info "Pets table already exists")
+        (do
+          (log/error e "Failed to create Pets table")
+          (throw e))))))
+
+(defn name-exists? [name id]
+  (if (some? id)
+    (seq (jdbc/query db-spec ["SELECT 1 FROM pets WHERE name = ? AND id <> ?" name id]))
+    (seq (jdbc/query db-spec ["SELECT 1 FROM pets WHERE name = ? " name]))))
+
+(defn create-pet [name]
+  (if (name-exists? name nil)
+    (do
+      (log/warn (str "Duplicate name not allowed: " name))
+      {:error "Pet name must be unique"})
+    (try
+      (jdbc/with-db-transaction [tx db-spec]
+        (jdbc/insert! tx :pets {:name name} {:return-keys true})
+        (let [pet (first (jdbc/query tx ["SELECT id, name FROM pets WHERE name = ?" name]))]
+          (log/info (str "Created pet: " name))
+          pet))
+      (catch Exception e
+        (log/error e (str "Failed to create pet: " name))
+        (throw e)))))
+
+(defn get-all-pets []
+  (jdbc/query db-spec ["SELECT id, name FROM pets"]))
+
+(defn get-pet [id]
+  (first (jdbc/query db-spec ["SELECT id, name FROM pets WHERE id = ?" id])))
+
+(defn update-pet [id name]
+  (let [id (Long/parseLong id)] ; Ensure id is a number
+    (if (name-exists? name id)
+      (do
+        (log/warn (str "Duplicate name not allowed: " name))
+        {:error "Pet name must be unique"})
+      (try
+        (let [result (jdbc/update! db-spec :pets {:name name} ["id = ?" id])]
+          (if (pos? (first result))
+            (do
+              (log/info (str "Updated pet id: " id " to name: " name))
+              {:id id :name name})
+            (do
+              (log/warn (str "Pet not found: id=" id))
+              {:error "Pet not found"})))
+        (catch Exception e
+          (log/error e (str "Failed to update pet id: " id))
+          (throw e))))))
+
+(defn delete-pet [id]
+  (let [result (jdbc/delete! db-spec :pets ["id = ?" id])]
+    (if (pos? (first result))
+      (do
+        (log/info (str "Deleted pet id: " id))
+        {:status "success"})
+      (do
+        (log/warn (str "Pet not found: id=" id))
+        {:error "Pet not found"}))))
 
 ;; log requests
 (defn wrap-logging [handler]
@@ -18,15 +94,56 @@
 
 ;; Define routes
 (defroutes app-routes
-  (GET "/" [] {:status 200 :body {:message "Helloo World"}}))
+  (GET "/" [] {:status 200 :body {:message "Helloo World"}})
+  (GET "/pets" []
+    (response (get-all-pets)))
+  (GET "/pets/:id" [id]
+    (if-let [pet (get-pet (Long/parseLong id))]
+      (response pet)
+      (do
+        (log/warn (str "Pet not found: id=" id))
+        (-> (response {:error "Pet not found"})
+            (status 404)))))
+  (POST "/pets" req
+    (let [name (get-in req [:body :name])]
+      (if name
+        (let [result (create-pet name)]
+          (if (:error result)
+            (-> (response result)
+                (status 400))
+            (response result)))
+        (do
+          (log/warn "Missing name in request body")
+          (-> (response {:error "Name is required"})
+              (status 400))))))
+  (PUT "/pets/:id" [id :as req]
+    (let [name (get-in req [:body :name])]
+      (if name
+        (let [result (update-pet id name)]
+          (if (:error result)
+            (-> (response result)
+                (status 400))
+            (response result)))
+        (do
+          (log/warn "Missing name in request body")
+          (-> (response {:error "Name is required"})
+              (status 400))))))
+  (DELETE "/pets/:id" [id]
+    (let [result (delete-pet (Long/parseLong id))]
+      (if (:error result)
+        (-> (response result)
+            (status 404))
+        (response result)))))
 
 ;; Wrap the routes with JSON middleware
 (def app
   (-> app-routes
       wrap-logging
+      (wrap-json-body {:keywords? true})
       wrap-json-response))
 
 ;; Main function to start the Jetty server
 (defn -main []
+  (init-db)
   (run-jetty app {:port 3000 :join? false}))
 
