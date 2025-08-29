@@ -6,12 +6,12 @@
             [compojure.route :as route]
             [ring.adapter.jetty :refer [run-jetty]]
             [ring.middleware.json :refer [wrap-json-response wrap-json-body]]
-            [ring.util.response :refer [response status]])
+            [ring.util.response :refer [response status file-response]])
   (:import [org.sqlite SQLiteException]))
 
 (def db-spec
   {:dbtype "sqlite"
-   :dbname "pets.db"})
+   :dbname "database/pets.db"})
 
 (defn init-db []
   (try
@@ -94,7 +94,8 @@
 
 ;; Define routes
 (defroutes app-routes
-  (GET "/" [] {:status 200 :body {:message "Helloo World"}})
+  (GET "/" [] 
+       (file-response "api-docs.html" {:root "resources"}))
   (GET "/pets" []
     (response (get-all-pets)))
   (GET "/pets/:id" [id]
