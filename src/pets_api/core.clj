@@ -6,15 +6,18 @@
             [compojure.route :as route]
             [ring.adapter.jetty :refer [run-jetty]]
             [ring.middleware.json :refer [wrap-json-response wrap-json-body]]
-            [ring.util.response :refer [response status file-response]])
+            [ring.util.response :refer [response status resource-response]]
+            [clojure.java.io :as io])
   (:import [org.sqlite SQLiteException]))
 
 (def db-spec
   {:dbtype "sqlite"
-   :dbname "database/pets.db"})
+   :dbname (or (System/getenv "DB_PATH") "database/pets.db")})
 
 (defn init-db []
   (try
+    (let [file (java.io.File. (get db-spec :dbname))]
+      (log/info (str ":db-path " (.getAbsolutePath file))))
     (jdbc/db-do-commands db-spec
                          (jdbc/create-table-ddl :pets
                                                 [[:id :integer :primary :key :autoincrement]
@@ -95,7 +98,19 @@
 ;; Define routes
 (defroutes app-routes
   (GET "/" [] 
-       (file-response "api-docs.html" {:root "resources"}))
+       (let [resource-path "api-docs.html"
+          resource (io/resource resource-path)]
+      (if resource
+        (do
+          (log/debug (str "Serving API docs from: " (.toString resource)))
+          (-> (resource-response resource-path)
+              (assoc-in [:headers "Content-Type"] "text/html")))
+        (do
+          (log/error (str "API documentation file not found: " resource-path)
+                     "Classpath:" (vec (.getURLs (java.net.URLClassLoader/getSystemClassLoader))))
+          (-> (response {:error "API documentation not found"})
+              (status 404))))))
+
   (GET "/pets" []
     (response (get-all-pets)))
   (GET "/pets/:id" [id]
@@ -146,5 +161,5 @@
 ;; Main function to start the Jetty server
 (defn -main []
   (init-db)
-  (run-jetty app {:port 3000 :join? false}))
+  (run-jetty app {:port 3000 :host "0.0.0.0" :join? false}))
 
