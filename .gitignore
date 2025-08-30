@@ -1,0 +1,47 @@
+# Build artifacts# Build artifacts
+target/
+classes/
+
+# Dependency caches
+.m2/repository/
+.cpcache/
+
+# Editor/IDE specific files
+.idea/
+.vscode/
+.lsp/
+.cider-repl-history
+
+# Temporary files
+*.swp
+*~
+
+# Leiningen/Clojure CLI specific files
+project.clj.bak
+deps.edn.bak
+
+# User-specific configurations
+.lein-profiles.clj
+target/
+classes/
+
+# Dependency caches
+.m2/repository/
+.cpcache/
+
+# Editor/IDE specific files
+.idea/
+.vscode/
+.lsp/
+.cider-repl-history
+
+# Temporary files
+*.swp
+*~
+
+# Leiningen/Clojure CLI specific files
+project.clj.bak
+deps.edn.bak
+
+# User-specific configurations
+.lein-profiles.clj
